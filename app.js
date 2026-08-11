@@ -175,20 +175,67 @@
   function cardHTML(d) {
     const isLearned = state.learned.has(d.sno);
     const sentence = d.sentence ? highlightSentence(d.sentence, d.word) : '';
+
+    // Build the synonyms list: include the existing synonym + the new ones (deduped)
+    const allSyns = [];
+    if (d.synonym) allSyns.push(d.synonym);
+    if (Array.isArray(d.synonyms)) allSyns.push(...d.synonyms);
+    // dedupe (case-insensitive) preserving order
+    const seen = new Set();
+    const syns = allSyns.filter(w => {
+      const k = (w || '').trim().toUpperCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const ants = (Array.isArray(d.antonyms) ? d.antonyms : []).filter(a => a && a.trim());
+
+    const synChips = syns.map(w => `
+      <button class="chip chip-syn" data-action="pron-chip" data-word="${escapeHTML(w)}" title="Tap to hear">
+        <span class="chip-text">${escapeHTML(w)}</span>
+        <svg class="chip-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      </button>
+    `).join('');
+
+    const antChips = ants.map(w => `
+      <button class="chip chip-ant" data-action="pron-chip" data-word="${escapeHTML(w)}" title="Tap to hear">
+        <span class="chip-text">${escapeHTML(w)}</span>
+        <svg class="chip-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+      </button>
+    `).join('');
+
     return `
       <article class="card" data-sno="${d.sno}">
         <div class="card-head">
-          <div>
-            <div class="card-word">${escapeHTML(d.word)}</div>
+          <div class="card-head-left">
+            <button class="card-word-btn" data-action="pron" data-word="${escapeHTML(d.word)}" title="Tap word to hear pronunciation">
+              <span class="card-word">${escapeHTML(d.word)}</span>
+              <svg class="card-word-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            </button>
           </div>
           <div class="card-sno">#${d.sno}</div>
         </div>
-        <span class="card-synonym">${escapeHTML(d.synonym || '')}</span>
         <div class="card-meaning">${escapeHTML(d.meaning || '')}</div>
         ${d.bengali ? `
         <div class="card-bn">
           <span class="card-bn-label">বাংলা</span>
           <span class="card-bn-text">${escapeHTML(d.bengali)}</span>
+        </div>` : ''}
+        ${syns.length ? `
+        <div class="card-block">
+          <div class="card-block-label label-syn">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/></svg>
+            Synonyms (${syns.length})
+          </div>
+          <div class="chips">${synChips}</div>
+        </div>` : ''}
+        ${ants.length ? `
+        <div class="card-block">
+          <div class="card-block-label label-ant">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Antonyms (${ants.length})
+          </div>
+          <div class="chips">${antChips}</div>
         </div>` : ''}
         ${sentence ? `
         <div class="card-sentence">${sentence}</div>` : ''}
@@ -212,7 +259,8 @@
   function onCardAction(e) {
     const btn = e.currentTarget;
     const action = btn.dataset.action;
-    if (action === 'pron') {
+    if (action === 'pron' || action === 'pron-chip') {
+      e.stopPropagation();
       speak(btn.dataset.word, btn);
     } else if (action === 'mark') {
       const sno = parseInt(btn.dataset.sno, 10);
